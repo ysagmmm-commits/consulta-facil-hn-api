@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Agendamento - Consulta Fácil HN</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Consulta Fácil HN</h1>
+    <nav>
+      <a href="index.html">Início</a> | 
+      <a href="cadastro-usuario.html">Pacientes</a> | 
+      <a href="cadastro-profissional.html">Profissionais</a> | 
+      <a href="agendamento.html"><strong>Agendamento</strong></a>
+    </nav>
+  </header>
+
+  <main style="max-width: 800px; margin: 20px auto; padding: 15px; font-family: sans-serif;">
+    <h2>Marcar Consulta</h2>
+    <div id="status" style="margin-bottom: 10px; font-weight: bold;"></div>
+
+    <form id="form-agenda" style="display: flex; flex-direction: column; gap: 10px;">
+      <label>Paciente:</label>
+      <select id="paciente" required><option value="">Carregando...</option></select>
+
+      <label>Profissional:</label>
+      <select id="profissional" required><option value="">Carregando...</option></select>
+
+      <label>Data:</label>
+      <input type="date" id="data" required>
+
+      <label>Horário:</label>
+      <input type="time" id="horario" required>
+
+      <button type="submit" style="padding: 10px; background: #2e7d32; color: white; border: none; cursor: pointer;">Salvar Agendamento</button>
+    </form>
+
+    <h2 style="margin-top: 30px;">Consultas Cadastradas</h2>
+    <table border="1" width="100%" cellpadding="6" style="border-collapse: collapse;">
+      <thead>
+        <tr bgcolor="#eee">
+          <th>ID</th>
+          <th>Data</th>
+          <th>Horário</th>
+          <th>Paciente</th>
+          <th>Médico</th>
+          <th>Status</th>
+          <th>Ação</th>
+        </tr>
+      </thead>
+      <tbody id="tabela"></tbody>
+    </table>
+  </main>
+
+  <script>
+    const API = "http://127.0.0.1:8000/api";
+
+    async function carregarTudo() {
+      try {
+        const resPac = await fetch(`${API}/usuarios/`);
+        const pacs = await resPac.json();
+        const selPac = document.getElementById("paciente");
+        selPac.innerHTML = '<option value="">Selecione</option>';
+        pacs.forEach(p => selPac.innerHTML += `<option value="${p.id}">${p.nome}</option>`);
+
+        const resProf = await fetch(`${API}/profissionais/`);
+        const profs = await resProf.json();
+        const selProf = document.getElementById("profissional");
+        selProf.innerHTML = '<option value="">Selecione</option>';
+        profs.forEach(pr => selProf.innerHTML += `<option value="${pr.id}">${pr.nome} (${pr.especialidade})</option>`);
+
+        const resCons = await fetch(`${API}/consultas/`);
+        const consultas = await resCons.json();
+        const tbody = document.getElementById("tabela");
+        tbody.innerHTML = "";
+        consultas.forEach(c => {
+          tbody.innerHTML += `
+            <tr>
+              <td>${c.id}</td>
+              <td>${c.data}</td>
+              <td>${c.horario}</td>
+              <td>#${c.paciente_id}</td>
+              <td>#${c.profissional_id}</td>
+              <td>${c.status}</td>
+              <td>
+                ${c.status === "Agendada" ? `<button onclick="cancelar(${c.id})">Cancelar</button>` : "-"}
+              </td>
+            </tr>
+          `;
+        });
+      } catch (e) {
+        console.log("Aguardando API...");
+      }
+    }
+
+    document.getElementById("form-agenda").onsubmit = async (e) => {
+      e.preventDefault();
+      const aviso = document.getElementById("status");
+      const dados = {
+        paciente_id: parseInt(document.getElementById("paciente").value),
+        profissional_id: parseInt(document.getElementById("profissional").value),
+        data: document.getElementById("data").value,
+        horario: document.getElementById("horario").value
+      };
+
+      try {
+        const res = await fetch(`${API}/consultas/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(dados)
+        });
+
+        if (res.ok) {
+          aviso.style.color = "green";
+          aviso.innerText = "Agendado com sucesso!";
+          carregarTudo();
+        } else {
+          const erro = await res.json();
+          aviso.style.color = "red";
+          aviso.innerText = erro.detail || "Erro ao agendar.";
+        }
+      } catch (err) {
+        aviso.style.color = "red";
+        aviso.innerText = "Erro ao conectar à API.";
+      }
+    };
+
+    async function cancelar(id) {
+      await fetch(`${API}/consultas/${id}/cancelar`, { method: "PUT" });
+      carregarTudo();
+    }
+
+    carregarTudo();
+  </script>
+</body>
+</html>
